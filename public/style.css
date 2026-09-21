@@ -374,3 +374,68 @@ label.full input {
   display: flex;
   gap: 10px;
 }
+
+/* 换算结果按当地日期分组：前一天侧在最前、来源当天居中、后一天侧在最后，视觉上分开 */
+.day-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.day-group {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px 12px;
+}
+
+.day-group-same {
+  border-color: #b9cdf5;
+  background: #f7faff;
+}
+
+.day-group-before {
+  border-style: dashed;
+  background: #faf8f4;
+}
+
+.day-group-after {
+  border-style: dashed;
+  background: #faf8f4;
+}
+
+.day-group-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.day-group-title {
+  font-family: Consolas, "Courier New", monospace;
+}
+
+.day-tag {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.day-tag.same {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.day-tag.before,
+.day-tag.after {
+  background: var(--warn-bg);
+  color: #8a5a00;
+}
+
+.day-group table.grid {
+  min-width: 720px;
+}

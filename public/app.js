@@ -263,20 +263,49 @@ async function runConvert() {
   }
 }
 
-function renderConvert(result) {
-  el('convert-meta').textContent = `来源 ${result.input.zoneName}（${result.input.zoneDisplayName}，${result.input.offsetText}）的 ${result.input.date} ${result.input.time}，换算时刻 ${formatTime(result.convertedAt)}；参与换算的档案 ${result.zonesInScope} 条，与来源不同天的有 ${result.crossDayCount} 条，最大时差 ${Math.floor(result.maxDiffMinutes / 60)} 小时 ${result.maxDiffMinutes % 60} 分`;
-  const body = el('convert-body');
-  body.innerHTML = result.results.map((item) => `<tr class="${item.isSource ? 'source-row' : ''}">
+function convertRowHtml(item) {
+  return `<tr class="${item.isSource ? 'source-row' : ''}">
       <td class="mono">${escapeHtml(item.name)}</td>
       <td>${escapeHtml(item.displayName)}</td>
-      <td class="mono">${escapeHtml(item.localDate)}</td>
       <td class="mono">${escapeHtml(item.localTime)}</td>
-      <td>${escapeHtml(item.weekday)}</td>
-      <td><span class="tag ${item.dayOffset === 0 ? 'off' : 'warn'}">${escapeHtml(item.dayOffsetText)}</span></td>
       <td class="mono">${escapeHtml(item.offsetText)}</td>
       <td>${escapeHtml(item.diffText)}</td>
       <td>${item.usesDst ? '有规则' : '—'}</td>
-    </tr>`).join('');
+    </tr>`;
+}
+
+function convertGroupHtml(group) {
+  // 跨到前一天或后一天的组单独标明落在来源当天的哪一侧、与来源相差几天
+  const badge = group.side === 'same'
+    ? '<span class="day-tag same">来源当天</span>'
+    : `<span class="day-tag ${group.side === 'before' ? 'before' : 'after'}">${escapeHtml(group.sideText)} · ${escapeHtml(group.dayOffsetText)}</span>`;
+  return `<section class="day-group day-group-${group.side}">
+    <h3 class="day-group-head">
+      <span class="day-group-title">${escapeHtml(group.titleText)}</span>
+      ${badge}
+    </h3>
+    <div class="table-wrap">
+      <table class="grid">
+        <thead>
+          <tr>
+            <th>时区</th>
+            <th>显示名称</th>
+            <th>当地时刻</th>
+            <th>偏移</th>
+            <th>与来源时区相差</th>
+            <th>夏令时</th>
+          </tr>
+        </thead>
+        <tbody>${group.items.map(convertRowHtml).join('')}</tbody>
+      </table>
+    </div>
+  </section>`;
+}
+
+function renderConvert(result) {
+  el('convert-meta').textContent = `来源 ${result.input.zoneName}（${result.input.zoneDisplayName}，${result.input.offsetText}）的 ${result.input.date} ${result.input.time}，换算时刻 ${formatTime(result.convertedAt)}；参与换算的档案 ${result.zonesInScope} 条，分成 ${result.groups.length} 组（按当地日期），与来源不同天的有 ${result.crossDayCount} 条，最大时差 ${Math.floor(result.maxDiffMinutes / 60)} 小时 ${result.maxDiffMinutes % 60} 分`;
+  // 分组顺序由服务端定好：前一天侧在最前、来源当天居中、后一天侧在最后
+  el('convert-groups').innerHTML = (result.groups || []).map(convertGroupHtml).join('');
   el('convert-empty').classList.toggle('hidden', result.results.length > 0);
 }
 

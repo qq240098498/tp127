@@ -55,6 +55,69 @@ function dayOffsetText(dayOffset) {
   return `前 ${Math.abs(dayOffset)} 天`;
 }
 
+// 分组标题里的侧别：落在来源日期之前的叫前一天侧，之后的叫后一天侧，当天的标来源当天
+function sideText(dayOffset) {
+  if (dayOffset < 0) return '前一天侧';
+  if (dayOffset > 0) return '后一天侧';
+  return '来源当天';
+}
+
+// 组标题里写清这一天是本地哪一天、星期几、当天有几个地区
+function groupTitleText(group) {
+  return `${group.localDate} ${group.weekday} · ${group.count} 个地区`;
+}
+
+// 按当地日期把换算结果分组：同一天归一组，键里带年份，同月日但跨年的自然分成两组。
+// 组的排列顺序为前一天侧、来源当天、后一天侧；同一侧内按日期先后。组内按时刻从早到晚。
+// 分组直接由每条结果的 localDate 建键，因此每条结果恰好落进唯一一组：
+// 不会同时出现在两组，也不会哪一组都没落进去。
+function groupResults(results) {
+  const groups = new Map();
+  results.forEach((item) => {
+    const group = groups.get(item.localDate);
+    if (group) {
+      group.items.push(item);
+      group.count += 1;
+      // 同一 localDate 算出的 dayOffset、星期必然一致，取第一条即可
+      return;
+    }
+    groups.set(item.localDate, {
+      key: item.localDate,
+      localDate: item.localDate,
+      year: Number(item.localDate.slice(0, 4)),
+      month: Number(item.localDate.slice(5, 7)),
+      day: Number(item.localDate.slice(8, 10)),
+      weekday: item.weekday,
+      dayOffset: item.dayOffset,
+      dayOffsetText: dayOffsetText(item.dayOffset),
+      side: item.dayOffset < 0 ? 'before' : item.dayOffset > 0 ? 'after' : 'same',
+      sideText: sideText(item.dayOffset),
+      count: 1,
+      items: [item],
+    });
+  });
+
+  const list = Array.from(groups.values());
+  list.sort((a, b) => {
+    // 先按侧别分开：前一天侧在最前、来源当天居中、后一天侧在最后
+    const sideRank = { before: 0, same: 1, after: 2 };
+    if (sideRank[a.side] !== sideRank[b.side]) return sideRank[a.side] - sideRank[b.side];
+    // 跨到前一天的组理论上可差出两天以上，同一侧内再按日期先后兜底
+    if (a.localDate !== b.localDate) return a.localDate < b.localDate ? -1 : 1;
+    return 0;
+  });
+  list.forEach((group) => {
+    // 组内按当地时刻从早到晚，同一时刻再按时区名兜底，保证顺序确定
+    group.items.sort((a, b) => {
+      if (a.localTime !== b.localTime) return a.localTime < b.localTime ? -1 : 1;
+      return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+    });
+    group.titleText = groupTitleText(group);
+  });
+
+  return list;
+}
+
 // 换算：先把输入时刻按来源时区的偏移折算成基准时刻，再逐个时区加上各自的偏移
 function convert(options) {
   const input = options && typeof options === 'object' ? options : {};
@@ -100,6 +163,8 @@ function convert(options) {
     return a.name < b.name ? -1 : 1;
   });
 
+  const groups = groupResults(results);
+
   return {
     input: {
       date: date.text,
@@ -118,8 +183,9 @@ function convert(options) {
     crossDayCount: results.filter((item) => item.dayOffset !== 0).length,
     maxDiffMinutes: results.reduce((acc, item) => Math.max(acc, Math.abs(item.diffMinutes)), 0),
     results,
+    groups,
     convertedAt: new Date().toISOString(),
   };
 }
 
-module.exports = { convert, validateDate, validateTime, diffText, dayOffsetText };
+module.exports = { convert, validateDate, validateTime, diffText, dayOffsetText, groupResults };
