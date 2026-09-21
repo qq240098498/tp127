@@ -261,6 +261,20 @@ tr.source-row td {
   background: var(--accent-soft);
 }
 
+tr.group-head td {
+  font-weight: 600;
+  color: var(--ink);
+  white-space: normal;
+}
+
+tr.group-head.same-day td {
+  background: var(--accent-soft);
+}
+
+tr.group-head.cross-day td {
+  background: var(--warn-bg);
+}
+
 .tag {
   display: inline-block;
   padding: 1px 6px;

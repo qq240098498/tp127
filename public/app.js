@@ -263,20 +263,55 @@ async function runConvert() {
   }
 }
 
+// 换算结果按当地日期分组：同一天的归一组，组内按时刻从早到晚排。
+// 分组键用完整的当地日期（含年份），跨年换算时同一个月日落在两个年份也会分成两组；
+// 每条结果只按自己的当地日期落进唯一一组，不会重复也不会漏掉
+function groupByLocalDate(results) {
+  const byDate = new Map();
+  results.forEach((item) => {
+    if (!byDate.has(item.localDate)) byDate.set(item.localDate, []);
+    byDate.get(item.localDate).push(item);
+  });
+  return [...byDate.entries()].map(([date, items]) => {
+    const sorted = items.slice().sort((a, b) => {
+      if (a.localTime !== b.localTime) return a.localTime < b.localTime ? -1 : 1;
+      if (a.name !== b.name) return a.name < b.name ? -1 : 1;
+      return 0;
+    });
+    return { date, items: sorted, weekday: sorted[0].weekday, dayOffset: sorted[0].dayOffset };
+  }).sort((a, b) => {
+    // 组与组按日期先后排：翻到前一天（或更早）的组自然落在最前，来源当天的组居中，翻到后一天（或更晚）的组在最后
+    if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+    return 0;
+  });
+}
+
+// 组标题里写明这一组落在来源当天的哪一侧、相差几天
+function groupSideText(dayOffset) {
+  if (dayOffset === 0) return '来源当天';
+  if (dayOffset < 0) return `比来源日期早 ${Math.abs(dayOffset)} 天`;
+  return `比来源日期晚 ${dayOffset} 天`;
+}
+
 function renderConvert(result) {
-  el('convert-meta').textContent = `来源 ${result.input.zoneName}（${result.input.zoneDisplayName}，${result.input.offsetText}）的 ${result.input.date} ${result.input.time}，换算时刻 ${formatTime(result.convertedAt)}；参与换算的档案 ${result.zonesInScope} 条，与来源不同天的有 ${result.crossDayCount} 条，最大时差 ${Math.floor(result.maxDiffMinutes / 60)} 小时 ${result.maxDiffMinutes % 60} 分`;
+  const groups = groupByLocalDate(result.results);
+  el('convert-meta').textContent = `来源 ${result.input.zoneName}（${result.input.zoneDisplayName}，${result.input.offsetText}）的 ${result.input.date} ${result.input.time}，换算时刻 ${formatTime(result.convertedAt)}；参与换算的档案 ${result.zonesInScope} 条，与来源不同天的有 ${result.crossDayCount} 条，最大时差 ${Math.floor(result.maxDiffMinutes / 60)} 小时 ${result.maxDiffMinutes % 60} 分；按当地日期分成 ${groups.length} 组`;
   const body = el('convert-body');
-  body.innerHTML = result.results.map((item) => `<tr class="${item.isSource ? 'source-row' : ''}">
-      <td class="mono">${escapeHtml(item.name)}</td>
-      <td>${escapeHtml(item.displayName)}</td>
-      <td class="mono">${escapeHtml(item.localDate)}</td>
-      <td class="mono">${escapeHtml(item.localTime)}</td>
-      <td>${escapeHtml(item.weekday)}</td>
-      <td><span class="tag ${item.dayOffset === 0 ? 'off' : 'warn'}">${escapeHtml(item.dayOffsetText)}</span></td>
-      <td class="mono">${escapeHtml(item.offsetText)}</td>
-      <td>${escapeHtml(item.diffText)}</td>
-      <td>${item.usesDst ? '有规则' : '—'}</td>
-    </tr>`).join('');
+  body.innerHTML = groups.map((group) => {
+    const head = `<tr class="group-head ${group.dayOffset === 0 ? 'same-day' : 'cross-day'}"><td colspan="9">${escapeHtml(group.date)} ${escapeHtml(group.weekday)} · ${group.items.length} 个地区 · ${escapeHtml(groupSideText(group.dayOffset))}</td></tr>`;
+    const rows = group.items.map((item) => `<tr class="${item.isSource ? 'source-row' : ''}">
+        <td class="mono">${escapeHtml(item.name)}</td>
+        <td>${escapeHtml(item.displayName)}</td>
+        <td class="mono">${escapeHtml(item.localDate)}</td>
+        <td class="mono">${escapeHtml(item.localTime)}</td>
+        <td>${escapeHtml(item.weekday)}</td>
+        <td><span class="tag ${item.dayOffset === 0 ? 'off' : 'warn'}">${escapeHtml(item.dayOffsetText)}</span></td>
+        <td class="mono">${escapeHtml(item.offsetText)}</td>
+        <td>${escapeHtml(item.diffText)}</td>
+        <td>${item.usesDst ? '有规则' : '—'}</td>
+      </tr>`).join('');
+    return head + rows;
+  }).join('');
   el('convert-empty').classList.toggle('hidden', result.results.length > 0);
 }
 
